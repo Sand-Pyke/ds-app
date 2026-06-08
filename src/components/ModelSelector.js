@@ -4,7 +4,6 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 export default function ModelSelector({ currentModel, onSelect }) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>选择模式</Text>
       <TouchableOpacity
         style={[styles.option, currentModel === 'flash' && styles.optionActive]}
         onPress={() => onSelect('flash')}

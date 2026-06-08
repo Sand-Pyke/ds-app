@@ -1,17 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   TextInput,
   TouchableOpacity,
   Text,
   StyleSheet,
-  Keyboard,
 } from 'react-native';
 
-export default function ChatInput({ isGenerating, onSend, onStop }) {
+export default function ChatInput({ isGenerating, onSend, onStop, onFocus }) {
   const [text, setText] = useState('');
   const [height, setHeight] = useState(44);
-  const inputRef = useRef(null);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -19,10 +17,6 @@ export default function ChatInput({ isGenerating, onSend, onStop }) {
     onSend(trimmed);
     setText('');
     setHeight(44);
-  };
-
-  const handleStop = () => {
-    onStop();
   };
 
   const handleContentSizeChange = (event) => {
@@ -34,7 +28,6 @@ export default function ChatInput({ isGenerating, onSend, onStop }) {
     <View style={styles.container}>
       <View style={styles.inputContainer}>
         <TextInput
-          ref={inputRef}
           style={[styles.input, { height }]}
           value={text}
           onChangeText={setText}
@@ -44,10 +37,10 @@ export default function ChatInput({ isGenerating, onSend, onStop }) {
           textAlignVertical="center"
           onContentSizeChange={handleContentSizeChange}
           onSubmitEditing={handleSend}
-          blurOnSubmit={false}
+          onFocus={onFocus}
         />
         {isGenerating ? (
-          <TouchableOpacity style={styles.sendBtn} onPress={handleStop}>
+          <TouchableOpacity style={styles.sendBtn} onPress={onStop}>
             <View style={styles.stopIcon} />
           </TouchableOpacity>
         ) : (
@@ -66,16 +59,12 @@ export default function ChatInput({ isGenerating, onSend, onStop }) {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingBottom: 24,
+    paddingBottom: 8,   // 不要留太大，避免键盘弹起时底部有空白
   },
   inputContainer: {
     flexDirection: 'row',

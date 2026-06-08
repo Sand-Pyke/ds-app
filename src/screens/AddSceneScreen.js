@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,15 @@ export default function AddSceneScreen({ navigation }) {
     { label: '生活百科', value: 'life_expert', prompt: '你是一位生活专家，了解日常生活的方方面面' },
     { label: '其他', value: 'other', prompt: '' },
   ];
+
+  // 初始化时根据默认选择的标签设置名称和提示词
+  React.useEffect(() => {
+    const defaultTag = tags.find(t => t.value === selectedTag);
+    if (defaultTag) {
+      setName(defaultTag.label);
+      setPrompt(defaultTag.prompt);
+    }
+  }, []);
 
   const handleTagSelect = (tag) => {
     setSelectedTag(tag.value);

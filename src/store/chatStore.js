@@ -20,6 +20,7 @@ export function useChatStore() {
   const [statusMessage, setStatusMessage] = useState('');
   const conversationHistoryRef = useRef({});
   const abortControllerRef = useRef(null);
+  console.log('ChatStore 初始化完成', { currentSceneId });
 
   const currentScene = scenes.find(s => s.id === currentSceneId) || DEFAULT_SCENE;
 
@@ -78,15 +79,19 @@ export function useChatStore() {
   const addScene = useCallback(async (name, systemPrompt = '') => {
     const sceneId = 'scene_' + Date.now();
     const newScene = { id: sceneId, name, systemPrompt };
-    const updatedScenes = [...scenes, newScene];
-    setScenes(updatedScenes);
-    await setItem(STORAGE_KEYS.SCENES, updatedScenes);
+    
+    setScenes(prevScenes => {
+      const updatedScenes = [...prevScenes, newScene];
+      setItem(STORAGE_KEYS.SCENES, updatedScenes);
+      return updatedScenes;
+    });
+    
     conversationHistoryRef.current[sceneId] = [];
     await saveConversations();
     setCurrentSceneId(sceneId);
     await setItem(STORAGE_KEYS.CURRENT_SCENE, sceneId);
     setMessages([]);
-  }, [scenes]);
+  }, []);
 
   const editScene = useCallback(async (sceneId, updates) => {
     const updatedScenes = scenes.map(s =>
@@ -124,6 +129,7 @@ export function useChatStore() {
 
   const sendMessage = useCallback(async (text) => {
     if (!text || isGenerating) return;
+    console.log('[发送消息] 内容:', text.substring(0, 50));
 
     const history = conversationHistoryRef.current;
     if (!history[currentSceneId]) {
@@ -147,44 +153,44 @@ export function useChatStore() {
     }
 
     const apiModel = currentModel === 'flash' ? 'deepseek-v4-flash' : 'deepseek-v4-pro';
-    abortControllerRef.current = new AbortController();
+    let fullContent = '';
+    let finished = false;
 
-    try {
-      const stream = streamChat(chatMessages, apiModel);
-      let fullContent = '';
+    const onContent = (content) => {
+      fullContent += content;
+      setAccumulatedContent(fullContent);
+    };
 
-      for await (const chunk of stream) {
-        if (chunk.type === 'content') {
-          fullContent += chunk.data;
-          setAccumulatedContent(fullContent);
-        } else if (chunk.type === 'error') {
-          setStatusMessage(`错误: ${chunk.data}`);
-        } else if (chunk.type === 'aborted') {
-          if (fullContent.trim()) {
-            history[currentSceneId].push({
-              role: 'assistant',
-              content: fullContent + '\n\n*[已中断]*',
-            });
-            await saveConversations();
-            setMessages([...history[currentSceneId]]);
-          }
-        } else if (chunk.type === 'done') {
-          if (fullContent.trim()) {
-            history[currentSceneId].push({
-              role: 'assistant',
-              content: fullContent,
-            });
-            await saveConversations();
-            setMessages([...history[currentSceneId]]);
-          }
-        }
+    const onDone = async () => {
+      if (finished) return;
+      finished = true;
+      console.log('[发送消息] 响应完成, 总长度:', fullContent.length);
+      if (fullContent.trim()) {
+        history[currentSceneId].push({
+          role: 'assistant',
+          content: fullContent,
+        });
+        await saveConversations();
+        setMessages([...history[currentSceneId]]);
       }
-    } catch (error) {
-      setStatusMessage(`错误: ${error.message}`);
-    } finally {
       setIsGenerating(false);
       setAccumulatedContent('');
-    }
+    };
+
+    const onError = async (error) => {
+      if (finished) return;
+      finished = true;
+      console.error('[发送消息] 异常:', error.message);
+      const errorMsg = `抱歉，发生了错误: ${error.message}`;
+      history[currentSceneId].push({ role: 'assistant', content: errorMsg });
+      setMessages([...history[currentSceneId]]);
+      await saveConversations();
+      setIsGenerating(false);
+      setAccumulatedContent('');
+    };
+
+    const request = streamChat(chatMessages, apiModel, { onContent, onDone, onError });
+    abortControllerRef.current = { abort: () => { request.abort(); onDone(); } };
   }, [currentSceneId, currentScene, currentModel, isGenerating]);
 
   return {
